@@ -1,0 +1,32 @@
+name = "BayesBiont"
+uuid = "e02a378a-91cc-4ed4-9611-5adbfd6a723d"
+version = "0.1.0-DEV"
+authors = ["Edgar Zanella Alvarenga <edgar@fuzue.tech>"]
+
+[deps]
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+Kinbiont = "3b7c519f-be5e-4159-a208-6486ce96bb37"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+LogDensityProblems = "6fdf6af0-433a-55f7-b3ed-c6c6e0b8df7c"
+MCMCChains = "c7f686f2-ff18-58e9-bc7b-31028e88f75d"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
+Turing = "fce5fe82-541a-59a6-adf8-730c64b5f9a0"
+
+[compat]
+Distributions = "0.25"
+ForwardDiff = "0.10, 1"
+Kinbiont = "1.2"
+LogDensityProblems = "2"
+MCMCChains = "6, 7"
+StatsBase = "0.33, 0.34"
+Turing = "0.36, 0.37, 0.38, 0.39, 0.40"
+julia = "1.11"
+
+[extras]
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Aqua", "Test"]

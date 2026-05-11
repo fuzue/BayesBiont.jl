@@ -1,0 +1,13 @@
+Manifest.toml
+/Manifest-v*.toml
+/test/Manifest.toml
+/docs/Manifest.toml
+/docs/build/
+/docs/site/
+*.cov
+*.jl.cov
+*.jl.mem
+.DS_Store
+.vscode/
+.idea/
+output/
