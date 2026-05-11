@@ -10,6 +10,22 @@ pooling in v0.2 and errors today.
 
 For multi-model `spec` (more than one candidate model), v0.1 fits only the first model
 per curve. Model comparison via LOO/WAIC lands in v0.3.
+
+# Example
+
+```julia
+using BayesBiont, Kinbiont, Statistics
+
+times = collect(0.0:0.25:24.0)
+curve = 1.0 .* exp.(-exp.(-0.4 .* (times .- 5.0)))
+data  = GrowthData(reshape(curve, 1, :), times, ["well1"])
+
+spec  = BayesianModelSpec([MODEL_REGISTRY["NL_Gompertz"]])
+post  = bayesfit(data, spec, BayesFitOptions(n_chains=2, n_warmup=400, n_samples=400))
+
+r = post[1]
+mean(r.growth_rate), quantile(r.growth_rate, [0.025, 0.975])
+```
 """
 function bayesfit(data::GrowthData, spec::BayesianModelSpec,
                   opts::BayesFitOptions = BayesFitOptions(); group=nothing)
@@ -28,6 +44,12 @@ function bayesfit(data::GrowthData, spec::BayesianModelSpec,
     return BayesianGrowthFitResults(data, results)
 end
 
+"""
+    bayesian_fit(args...; kwargs...)
+
+Snake-case alias for [`bayesfit`](@ref). Provided for Kinbiont users who prefer
+`kinbiont_fit`-style naming.
+"""
 const bayesian_fit = bayesfit
 
 function _fit_one(model::NLModel, times::Vector{Float64}, y::Vector{Float64},

@@ -25,10 +25,14 @@ Base.propertynames(r::BayesianCurveFitResult) =
     (fieldnames(BayesianCurveFitResult)..., Tuple(names(getfield(r, :chains), :parameters))...)
 
 """
-    posterior_predict(result; n_draws=200) -> Matrix{Float64}
+    posterior_predict(result::BayesianCurveFitResult; n_draws=200) -> Matrix{Float64}
 
-Compute posterior predictive curve samples on the original time grid. Returned
-matrix is `n_draws × n_timepoints`. Lazy by design — not cached on the result.
+Posterior predictive curve samples on `result.times`. Returns an `n_draws × n_timepoints`
+matrix; row `i` is the deterministic curve evaluated at posterior draw `i`. Use
+`vec(mean(out, dims=1))` for the posterior mean curve and
+`mapslices(c -> quantile(c, [0.025, 0.975]), out; dims=1)` for pointwise 95% bands.
+
+Lazy by design — not cached on `result`; recompute when you need different `n_draws`.
 """
 function posterior_predict(r::BayesianCurveFitResult; n_draws::Int=200)
     chain_params = names(r.chains, :parameters)
