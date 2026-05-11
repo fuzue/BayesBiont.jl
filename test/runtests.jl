@@ -136,6 +136,32 @@ include("utils.jl")
         @test isapprox(mean(r.lag),         truth.lag;         rtol=0.15)
     end
 
+    @testset "multi-curve independent fit" begin
+        Random.seed!(99)
+        t = collect(0.0:0.5:24.0)
+        # Two curves with different growth rates
+        c1 = 1.0 .* exp.(-exp.(-0.4 .* (t .- 5.0))) .* exp.(0.05 .* randn(length(t)))
+        c2 = 1.0 .* exp.(-exp.(-0.7 .* (t .- 3.0))) .* exp.(0.05 .* randn(length(t)))
+        data = GrowthData(permutedims(hcat(c1, c2)), t, ["c1", "c2"])
+        spec = BayesianModelSpec([MODEL_REGISTRY["NL_Gompertz"]])
+        opts = BayesFitOptions(n_chains=1, n_warmup=200, n_samples=200, rng_seed=99)
+
+        results = bayesfit(data, spec, opts)
+        @test length(results) == 2
+        @test results[1].label == "c1"
+        @test results[2].label == "c2"
+        # c2 has higher growth rate
+        @test mean(results[2].growth_rate) > mean(results[1].growth_rate)
+    end
+
+    @testset "v0.1 rejects ODEModel" begin
+        times, y, _ = synthetic_gompertz()
+        data = GrowthData(reshape(y, 1, :), times, ["c1"])
+        ode_model = MODEL_REGISTRY["gompertz"]                 # ODEModel
+        spec = BayesianModelSpec([ode_model])
+        @test_throws ArgumentError bayesfit(data, spec)
+    end
+
     @testset "DEFAULT_PRIORS registry" begin
         @test haskey(BayesBiont.DEFAULT_PRIORS, "NL_Gompertz")
         @test haskey(BayesBiont.DEFAULT_PRIORS, "NL_logistic")
