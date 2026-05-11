@@ -84,6 +84,51 @@ include("utils.jl")
         end
     end
 
+    @testset "user-supplied priors are honoured" begin
+        # Delta-like prior centred *off* the truth — if priors flow through, the
+        # posterior must concentrate near the prior centre regardless of the data.
+        times, observed, truth = synthetic_gompertz(seed=11)
+        data = GrowthData(reshape(observed, 1, :), times, ["g1"])
+        custom_priors = (
+            N_max = LogNormal(log(0.5), 1e-3),         # essentially a point mass at 0.5
+            growth_rate = LogNormal(log(truth.growth_rate), 0.5),
+            lag = LogNormal(log(truth.lag), 0.5),
+        )
+        spec = BayesianModelSpec([MODEL_REGISTRY["NL_Gompertz"]]; priors=[custom_priors])
+        opts = BayesFitOptions(n_chains=1, n_warmup=200, n_samples=200, rng_seed=11)
+
+        r = bayesfit(data, spec, opts)[1]
+        # Truth is 1.0, prior pins 0.5 with effectively-zero width.
+        @test isapprox(mean(r.N_max), 0.5; rtol=0.02)
+    end
+
+    @testset ":normal likelihood recovers Gompertz" begin
+        # Additive noise version — switch likelihood, expect comparable recovery.
+        Random.seed!(7)
+        times = collect(0.0:0.25:24.0)
+        truth = (N_max=1.0, growth_rate=0.4, lag=5.0, σ=0.03)
+        clean = truth.N_max .* exp.(-exp.(-truth.growth_rate .* (times .- truth.lag)))
+        observed = clean .+ truth.σ .* randn(length(times))
+        data = GrowthData(reshape(observed, 1, :), times, ["g_norm"])
+        spec = BayesianModelSpec([MODEL_REGISTRY["NL_Gompertz"]])
+        opts = BayesFitOptions(likelihood=:normal,
+                               n_chains=2, n_warmup=400, n_samples=400, rng_seed=7)
+
+        r = bayesfit(data, spec, opts)[1]
+        @test isapprox(mean(r.N_max),       truth.N_max;       rtol=0.10)
+        @test isapprox(mean(r.growth_rate), truth.growth_rate; rtol=0.20)
+        @test isapprox(mean(r.lag),         truth.lag;         rtol=0.15)
+    end
+
+    @testset "DEFAULT_PRIORS registry" begin
+        @test haskey(BayesBiont.DEFAULT_PRIORS, "NL_Gompertz")
+        @test haskey(BayesBiont.DEFAULT_PRIORS, "NL_logistic")
+        gomp = BayesBiont.DEFAULT_PRIORS["NL_Gompertz"]
+        @test gomp.N_max isa LogNormal
+        @test gomp.growth_rate isa LogNormal
+        @test gomp.lag isa LogNormal
+    end
+
     @testset "logistic recovery" begin
         times, observed, truth = synthetic_logistic(seed=23)
         data = GrowthData(reshape(observed, 1, :), times, ["l1"])
