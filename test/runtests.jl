@@ -62,5 +62,42 @@ include("utils.jl")
         @test isapprox(mean(r.N_max),       truth.N_max;       rtol=0.15)
         @test isapprox(mean(r.growth_rate), truth.growth_rate; rtol=0.20)
         @test isapprox(mean(r.lag),         truth.lag;         rtol=0.15)
+
+        @testset "propertynames + getproperty" begin
+            pn = propertynames(r)
+            @test :label in pn
+            @test :chains in pn
+            @test :times in pn
+            @test :N_max in pn
+            @test :growth_rate in pn
+            @test :lag in pn
+            @test :σ in pn
+            @test_throws ArgumentError r.does_not_exist
+        end
+
+        @testset "posterior_predict" begin
+            ppc = posterior_predict(r; n_draws=50)
+            @test size(ppc) == (50, length(times))
+            ppc_mean = vec(mean(ppc, dims=1))
+            # Posterior-predictive mean curve sits near the observed data.
+            @test isapprox(ppc_mean, observed; rtol=0.30)
+        end
+    end
+
+    @testset "logistic recovery" begin
+        times, observed, truth = synthetic_logistic(seed=23)
+        data = GrowthData(reshape(observed, 1, :), times, ["l1"])
+        spec = BayesianModelSpec([MODEL_REGISTRY["NL_logistic"]])
+        opts = BayesFitOptions(n_chains=2, n_warmup=400, n_samples=400, rng_seed=23)
+
+        results = bayesfit(data, spec, opts)
+        r = results[1]
+
+        # Kinbiont's NL_logistic exposes its three params positionally; the registry
+        # labels are misleading (see Kinbiont bug note). Names below map to
+        # [K, N_0, r] via Kinbiont's declared param_names.
+        @test isapprox(mean(r.N_max),       truth.K;   rtol=0.15)
+        @test isapprox(mean(r.growth_rate), truth.N_0; rtol=0.40)  # N_0 weakly identified
+        @test isapprox(mean(r.lag),         truth.r;   rtol=0.20)
     end
 end
