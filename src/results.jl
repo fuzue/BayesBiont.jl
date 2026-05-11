@@ -1,4 +1,5 @@
 using MCMCChains: Chains, namesingroup
+using Statistics: mean, quantile
 
 """
     Base.getproperty(r::BayesianCurveFitResult, name::Symbol)
@@ -49,4 +50,29 @@ function posterior_predict(r::BayesianCurveFitResult; n_draws::Int=200)
         out[j, :] = r.model.func(p_vec, r.times)
     end
     return out
+end
+
+function Base.show(io::IO, ::MIME"text/plain", r::BayesianCurveFitResult)
+    n_samples = length(vec(r.chains[Symbol(first(r.model.param_names))].data))
+    println(io, "BayesianCurveFitResult(label=\"$(r.label)\", model=\"$(r.model.name)\")")
+    println(io, "  $(length(r.times)) timepoints, $n_samples total posterior samples")
+    println(io, "  Parameters:")
+    for name in r.model.param_names
+        samples = vec(r.chains[Symbol(name)].data)
+        m = mean(samples)
+        lo, hi = quantile(samples, [0.025, 0.975])
+        println(io, "    $(rpad(name, 14)) mean=$(round(m; sigdigits=4))  " *
+                    "95% CI=[$(round(lo; sigdigits=4)), $(round(hi; sigdigits=4))]")
+    end
+    σ_samples = vec(r.chains[:σ].data)
+    print(io, "    $(rpad("σ", 14)) mean=$(round(mean(σ_samples); sigdigits=4))")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", r::BayesianGrowthFitResults)
+    n = length(r.results)
+    println(io, "BayesianGrowthFitResults with $n curve$(n == 1 ? "" : "s"):")
+    for (i, cr) in enumerate(r.results)
+        print(io, "  [$i] \"$(cr.label)\" → $(cr.model.name)")
+        i < n && println(io)
+    end
 end

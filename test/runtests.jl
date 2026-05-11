@@ -82,6 +82,22 @@ include("utils.jl")
             # Posterior-predictive mean curve sits near the observed data.
             @test isapprox(ppc_mean, observed; rtol=0.30)
         end
+
+        @testset "show printers" begin
+            buf = IOBuffer()
+            show(IOContext(buf, :displaysize => (24, 80)), MIME("text/plain"), results)
+            outer = String(take!(buf))
+            @test occursin("BayesianGrowthFitResults", outer)
+            @test occursin("g1", outer)
+            @test occursin("NL_Gompertz", outer)
+
+            buf = IOBuffer()
+            show(IOContext(buf, :displaysize => (24, 80)), MIME("text/plain"), r)
+            inner = String(take!(buf))
+            @test occursin("BayesianCurveFitResult", inner)
+            @test occursin("N_max", inner)
+            @test occursin("95% CI", inner)
+        end
     end
 
     @testset "user-supplied priors are honoured" begin
