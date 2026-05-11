@@ -11,3 +11,5 @@ Manifest.toml
 .vscode/
 .idea/
 output/
+
+/.claude/
