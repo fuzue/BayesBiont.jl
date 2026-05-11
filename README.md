@@ -16,17 +16,35 @@ Bayesian companion to [Kinbiont.jl](https://github.com/pinheiroGroup/KinBiont.jl
 
 BayesBiont reuses Kinbiont's curve definitions and `GrowthData` container — it's additive, not competitive.
 
-## Quick start (planned API)
+## Quick start
 
 ```julia
-using BayesBiont, Kinbiont
+using BayesBiont, Kinbiont, Statistics
 
+# Synthetic Gompertz curve with 5% multiplicative noise.
+times = collect(0.0:0.25:24.0)
+truth = (N_max=1.0, growth_rate=0.4, lag=5.0)
+clean = truth.N_max .* exp.(-exp.(-truth.growth_rate .* (times .- truth.lag)))
+obs   = clean .* exp.(0.05 .* randn(length(times)))
+
+data = GrowthData(reshape(obs, 1, :), times, ["well1"])
+spec = BayesianModelSpec([MODEL_REGISTRY["NL_Gompertz"]])     # auto-derived priors
+opts = BayesFitOptions(n_chains=2, n_warmup=400, n_samples=400)
+
+post = bayesfit(data, spec, opts)
+
+r = post[1]
+mean(r.growth_rate), quantile(r.growth_rate, [0.025, 0.975])
+
+# Posterior predictive bands on the original time grid.
+ppc = posterior_predict(r; n_draws=200)
+```
+
+To load real data from a CSV (Kinbiont column convention — first column times,
+remaining columns one curve each), pass a path to `GrowthData`:
+
+```julia
 data = GrowthData("plate.csv")
-spec = BayesianModelSpec([MODEL_REGISTRY["NL_Gompertz"]])  # auto-derived priors
-
-post = bayesfit(data, spec)
-post[1].growth_rate    # posterior samples for the first curve's μ
-mean(post[1].growth_rate), quantile(post[1].growth_rate, [0.025, 0.975])
 ```
 
 ## Roadmap
