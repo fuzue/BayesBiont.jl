@@ -1,2 +1,45 @@
-# NUTS dispatch. Defaults: 4 chains, 1000 warmup, 1000 samples, target_accept=0.95,
-# max_treedepth=10. Initial values from Kinbiont's `model.guess(data_mat)` + log-space jitter.
+using Turing: NUTS, sample, MCMCSerial, MCMCThreads
+using Random: MersenneTwister, AbstractRNG
+using Kinbiont: NLModel
+using MCMCChains: replacenames
+
+"""
+    fit_single_curve(curve_func, param_names, times, y, priors_vec, sigma_prior, guess_vec, opts)
+
+Run NUTS on a single curve and return a `Chains` with parameters renamed from the
+internal `p[i]` scheme to the model's `param_names`.
+
+Initial values per chain are `guess_vec` perturbed in log-space by `opts.jitter * randn()`.
+"""
+function fit_single_curve(curve_func, param_names::Vector{String},
+                          times::Vector{Float64}, y::Vector{Float64},
+                          priors_vec, sigma_prior, guess_vec::Vector{Float64},
+                          opts)
+    rng = opts.rng_seed === nothing ? MersenneTwister() : MersenneTwister(opts.rng_seed)
+
+    model = build_turing_model(curve_func, priors_vec, sigma_prior, opts.likelihood)(times, y)
+    sampler = NUTS(opts.n_warmup, opts.target_accept; max_depth=opts.max_treedepth)
+
+    init = _initial_params(guess_vec, opts, rng)
+
+    backend = opts.n_chains == 1 ? MCMCSerial() : MCMCThreads()
+    raw = sample(rng, model, sampler, backend, opts.n_samples, opts.n_chains;
+                 initial_params=init, progress=false)
+
+    return _rename_params(raw, param_names)
+end
+
+function _initial_params(guess_vec::Vector{Float64}, opts, rng::AbstractRNG)
+    n = length(guess_vec)
+    log_guess = log.(max.(guess_vec, eps()))
+    chains = opts.n_chains
+    return [
+        (p = exp.(log_guess .+ opts.jitter .* randn(rng, n)), σ = 0.1)
+        for _ in 1:chains
+    ]
+end
+
+function _rename_params(chains, param_names::Vector{String})
+    renames = ["p[$i]" => param_names[i] for i in eachindex(param_names)]
+    return replacenames(chains, renames...)
+end
