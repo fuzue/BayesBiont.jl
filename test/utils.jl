@@ -1,4 +1,7 @@
 using Random
+using OrdinaryDiffEqTsit5: Tsit5
+using SciMLBase: ODEProblem, solve
+using Kinbiont: MODEL_REGISTRY
 
 """
     synthetic_gompertz(; N_max, growth_rate, lag, σ, t_end=24.0, dt=0.2, seed=42)
@@ -45,5 +48,35 @@ function synthetic_logistic(;
     clean = K ./ (1 .+ (K / N_0 - 1) .* exp.(-r .* times))
     observed = clean .* exp.(σ .* randn(rng, length(times)))
     truth = (; K, N_0, r, σ)
+    return times, observed, truth
+end
+
+"""
+    synthetic_ahpm(; gr, exit_lag_rate, N_max, shape, N0, σ, t_end=24.0, dt=0.2, seed=31)
+
+Generate an observed total-cell curve from Kinbiont's aHPM ODE (2-state). Initial
+state `[N0, 0]` — all dormant — matches BayesBiont's u0 convention.
+Returns `(times, observed, truth)` with multiplicative noise.
+"""
+function synthetic_ahpm(;
+    gr = 0.5,
+    exit_lag_rate = 0.3,
+    N_max = 1.0,
+    shape = 1.0,
+    N0 = 0.05,
+    σ = 0.05,
+    t_end = 24.0,
+    dt = 0.25,
+    seed = 31,
+)
+    rng = MersenneTwister(seed)
+    times = collect(0.0:dt:t_end)
+    p = [gr, exit_lag_rate, N_max, shape]
+    u0 = [N0, 0.0]
+    prob = ODEProblem(MODEL_REGISTRY["aHPM"].func, u0, (times[1], times[end]), p)
+    sol = solve(prob, Tsit5(); saveat=times, abstol=1e-9, reltol=1e-7)
+    clean = vec(sum(reduce(hcat, sol.u); dims=1))
+    observed = clean .* exp.(σ .* randn(rng, length(times)))
+    truth = (; gr, exit_lag_rate, N_max, shape, N0, σ)
     return times, observed, truth
 end

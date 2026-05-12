@@ -154,12 +154,20 @@ include("utils.jl")
         @test mean(results[2].growth_rate) > mean(results[1].growth_rate)
     end
 
-    @testset "v0.1 rejects ODEModel" begin
-        times, y, _ = synthetic_gompertz()
-        data = GrowthData(reshape(y, 1, :), times, ["c1"])
-        ode_model = MODEL_REGISTRY["gompertz"]                 # ODEModel
-        spec = BayesianModelSpec([ode_model])
-        @test_throws ArgumentError bayesfit(data, spec)
+    @testset "aHPM ODE recovery" begin
+        times, observed, truth = synthetic_ahpm(seed=31)
+        data = GrowthData(reshape(observed, 1, :), times, ["ahpm1"])
+        spec = BayesianModelSpec([MODEL_REGISTRY["aHPM"]])
+        opts = BayesFitOptions(n_chains=1, n_warmup=400, n_samples=400, rng_seed=31)
+
+        r = bayesfit(data, spec, opts)[1]
+        @test r.model.name == "aHPM"
+        @test isapprox(mean(r.gr),    truth.gr;    rtol=0.30)
+        @test isapprox(mean(r.N_max), truth.N_max; rtol=0.15)
+
+        # ODE posterior_predict also works
+        ppc = posterior_predict(r; n_draws=20)
+        @test size(ppc) == (20, length(times))
     end
 
     @testset "DEFAULT_PRIORS registry" begin

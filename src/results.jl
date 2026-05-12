@@ -1,5 +1,8 @@
 using MCMCChains: Chains, namesingroup
 using Statistics: mean, quantile
+using Kinbiont: NLModel, ODEModel
+using OrdinaryDiffEqTsit5: Tsit5
+using SciMLBase: ODEProblem, solve
 
 """
     Base.getproperty(r::BayesianCurveFitResult, name::Symbol)
@@ -47,9 +50,19 @@ function posterior_predict(r::BayesianCurveFitResult; n_draws::Int=200)
     out = Matrix{Float64}(undef, n_draws, n_t)
     for (j, k) in enumerate(idx)
         p_vec = [arr[k] for arr in param_arrays]
-        out[j, :] = r.model.func(p_vec, r.times)
+        out[j, :] = _evaluate_curve(r.model, p_vec, r.times, r.observed)
     end
     return out
+end
+
+_evaluate_curve(model::NLModel, p, times, _) = model.func(p, times)
+
+function _evaluate_curve(model::ODEModel, p, times, observed)
+    u0 = vcat(observed[1], zeros(model.n_eq - 1))
+    prob = ODEProblem(model.func, u0, (times[1], times[end]), p)
+    sol = solve(prob, Tsit5(); saveat=times, abstol=1e-7, reltol=1e-5,
+                save_everystep=false)
+    return vec(sum(reduce(hcat, sol.u); dims=1))
 end
 
 function Base.show(io::IO, ::MIME"text/plain", r::BayesianCurveFitResult)

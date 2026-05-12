@@ -9,6 +9,8 @@ using Random
 using LinearAlgebra
 using ForwardDiff
 using LogDensityProblems
+using OrdinaryDiffEqTsit5: Tsit5
+using SciMLBase: ODEProblem, remake, solve
 
 include("types.jl")
 include("priors.jl")

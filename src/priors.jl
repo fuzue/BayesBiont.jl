@@ -1,5 +1,5 @@
 using Distributions: LogNormal
-using Kinbiont: AbstractGrowthModel, NLModel
+using Kinbiont: AbstractGrowthModel, NLModel, ODEModel
 
 """
     DEFAULT_PRIORS
@@ -35,6 +35,15 @@ const DEFAULT_PRIORS = Dict{String, NamedTuple}(
         growth_rate = LogNormal(log(0.01), 2.0),   # N_0 — very wide; weakly identified
         lag         = LogNormal(log(0.5), 0.8),    # r
     ),
+    # aHPM (adjusted heterogeneous population model) — 2-state ODE.
+    # States: u[1] = dormant pool, u[2] = active growth.
+    # Params: gr, exit_lag_rate, N_max, shape.
+    "aHPM" => (
+        gr            = LogNormal(log(0.5), 0.8),  # specific growth rate hr⁻¹
+        exit_lag_rate = LogNormal(log(0.2), 1.0),  # lag-exit rate hr⁻¹
+        N_max         = LogNormal(log(1.0), 0.7),  # carrying capacity (OD)
+        shape         = LogNormal(log(1.0), 0.5),  # logistic shape (1 = standard)
+    ),
 )
 
 """
@@ -46,6 +55,22 @@ otherwise empirical `LogNormal(log(model.guess(data_mat)), 1.0)` per parameter.
 function default_priors(model::NLModel, data_mat::AbstractMatrix)
     haskey(DEFAULT_PRIORS, model.name) && return DEFAULT_PRIORS[model.name]
     return empirical_priors(model, data_mat)
+end
+
+function default_priors(model::ODEModel, data_mat::AbstractMatrix)
+    haskey(DEFAULT_PRIORS, model.name) && return DEFAULT_PRIORS[model.name]
+    model.guess === nothing && throw(ArgumentError(
+        "ODE model `$(model.name)` has no guess function and no entry in DEFAULT_PRIORS; " *
+        "pass explicit priors via BayesianModelSpec(...; priors=...)"))
+    return empirical_priors_ode(model, data_mat)
+end
+
+function empirical_priors_ode(model::ODEModel, data_mat::AbstractMatrix)
+    guess_vec = model.guess(data_mat)
+    return NamedTuple(
+        Symbol(name) => LogNormal(log(max(g, eps())), 1.0)
+        for (name, g) in zip(model.param_names, guess_vec)
+    )
 end
 
 """

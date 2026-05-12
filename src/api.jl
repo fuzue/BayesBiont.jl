@@ -55,23 +55,35 @@ const bayesian_fit = bayesfit
 function _fit_one(model::NLModel, times::Vector{Float64}, y::Vector{Float64},
                   label::String, spec::BayesianModelSpec, opts::BayesFitOptions)
     data_mat = Matrix(transpose(hcat(times, y)))
-
-    priors_nt = if spec.priors === nothing
-        default_priors(model, data_mat)
-    else
-        first(spec.priors)::NamedTuple
-    end
+    priors_nt = _resolve_priors(spec, model, data_mat)
     priors_vec = priors_to_vector(model, priors_nt)
-
     guess_vec = model.guess === nothing ?
         [mean(p) for p in priors_vec] :
         model.guess(data_mat)
+    turing_model = build_turing_model(model.func, priors_vec, spec.sigma_prior, opts.likelihood)
+    chains = fit_single_curve(turing_model, model.param_names, times, y, guess_vec, opts)
+    return BayesianCurveFitResult(label, model, chains, times, y)
+end
 
-    chains = fit_single_curve(model.func, model.param_names, times, y,
-                              priors_vec, spec.sigma_prior, guess_vec, opts)
+function _fit_one(model::ODEModel, times::Vector{Float64}, y::Vector{Float64},
+                  label::String, spec::BayesianModelSpec, opts::BayesFitOptions)
+    data_mat = Matrix(transpose(hcat(times, y)))
+    priors_nt = _resolve_priors(spec, model, data_mat)
+    priors_vec = priors_to_vector(model, priors_nt)
+    guess_vec = model.guess === nothing ?
+        [mean(p) for p in priors_vec] :
+        model.guess(data_mat)
+    turing_model = build_ode_turing_model(model.func, model.n_eq, priors_vec,
+                                          spec.sigma_prior, opts.likelihood)
+    chains = fit_single_curve(turing_model, model.param_names, times, y, guess_vec, opts)
     return BayesianCurveFitResult(label, model, chains, times, y)
 end
 
 _fit_one(model::AbstractGrowthModel, ::Vector{Float64}, ::Vector{Float64},
          ::String, ::BayesianModelSpec, ::BayesFitOptions) =
-    throw(ArgumentError("v0.1 supports NLModel only; got $(typeof(model))"))
+    throw(ArgumentError("BayesBiont does not yet support $(typeof(model))"))
+
+function _resolve_priors(spec::BayesianModelSpec, model, data_mat)
+    spec.priors === nothing && return default_priors(model, data_mat)
+    return first(spec.priors)::NamedTuple
+end

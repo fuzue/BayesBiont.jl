@@ -1,7 +1,8 @@
 using Turing: NUTS, sample, MCMCSerial, MCMCThreads
 using Random: MersenneTwister, AbstractRNG
-using Kinbiont: NLModel
+using Kinbiont: NLModel, ODEModel
 using MCMCChains: replacenames
+using Distributions: mean, Distribution
 
 """
     fit_single_curve(curve_func, param_names, times, y, priors_vec, sigma_prior, guess_vec, opts)
@@ -11,13 +12,12 @@ internal `p[i]` scheme to the model's `param_names`.
 
 Initial values per chain are `guess_vec` perturbed in log-space by `opts.jitter * randn()`.
 """
-function fit_single_curve(curve_func, param_names::Vector{String},
+function fit_single_curve(turing_model, param_names::Vector{String},
                           times::Vector{Float64}, y::Vector{Float64},
-                          priors_vec, sigma_prior, guess_vec::Vector{Float64},
-                          opts)
+                          guess_vec::Vector{Float64}, opts)
     rng = opts.rng_seed === nothing ? MersenneTwister() : MersenneTwister(opts.rng_seed)
 
-    model = build_turing_model(curve_func, priors_vec, sigma_prior, opts.likelihood)(times, y)
+    model = turing_model(times, y)
     sampler = NUTS(opts.n_warmup, opts.target_accept; max_depth=opts.max_treedepth)
 
     init = _initial_params(guess_vec, opts, rng)
