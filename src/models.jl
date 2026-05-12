@@ -2,7 +2,7 @@ using Turing
 using Distributions: Distribution, LogNormal, Normal
 using Kinbiont: NLModel, ODEModel
 using OrdinaryDiffEqTsit5: Tsit5
-using SciMLBase: ODEProblem, remake, solve
+using SciMLBase: ODEProblem, remake, solve, successful_retcode
 
 """
     build_turing_model(curve_func, priors_vec, sigma_prior, likelihood)
@@ -53,6 +53,24 @@ function priors_to_vector(model::Union{NLModel, ODEModel}, priors_nt::NamedTuple
 end
 
 """
+    _solve_ode_sum(ode_func!, p, times, y1, n_eq)
+
+Integrate the ODE with `p` over `times` and return the per-timepoint sum of states,
+or `nothing` if the solver fails or returns a partial trajectory. Callers use
+`nothing` to reject the proposal with `-Inf` logprob — NUTS handles this cleanly.
+"""
+function _solve_ode_sum(ode_func!, p, times, y1, n_eq)
+    T = eltype(p)
+    u0 = vcat(convert(T, y1), zeros(T, n_eq - 1))
+    tspan = (times[1], times[end])
+    prob = ODEProblem(ode_func!, u0, tspan, p)
+    sol = solve(prob, Tsit5(); saveat=times, abstol=1e-7, reltol=1e-5,
+                save_everystep=false, verbose=false, maxiters=10_000)
+    (successful_retcode(sol) && length(sol.u) == length(times)) || return nothing
+    return vec(sum(reduce(hcat, sol.u); dims=1))
+end
+
+"""
     build_ode_turing_model(ode_func!, n_eq, priors_vec, sigma_prior, likelihood)
 
 Construct a Turing `@model` for an in-place ODE system `f!(du, u, p, t)`. Observation
@@ -68,15 +86,11 @@ function build_ode_turing_model(ode_func!, n_eq::Int,
             p ~ arraydist(priors_vec)
             σ ~ sigma_prior
 
-            T = eltype(p)
-            u0 = vcat(convert(T, y[1]), zeros(T, n_eq - 1))
-            tspan = (times[1], times[end])
-            prob = ODEProblem(ode_func!, u0, tspan, p)
-            sol = solve(prob, Tsit5(); saveat=times,
-                        abstol=1e-7, reltol=1e-5, save_everystep=false)
-            states = reduce(hcat, sol.u)
-            pred = vec(sum(states; dims=1))
-
+            pred = _solve_ode_sum(ode_func!, p, times, y[1], n_eq)
+            if pred === nothing
+                Turing.@addlogprob! -Inf
+                return nothing
+            end
             for i in eachindex(y)
                 y[i] ~ LogNormal(log(pred[i] + eps()), σ)
             end
@@ -86,15 +100,11 @@ function build_ode_turing_model(ode_func!, n_eq::Int,
             p ~ arraydist(priors_vec)
             σ ~ sigma_prior
 
-            T = eltype(p)
-            u0 = vcat(convert(T, y[1]), zeros(T, n_eq - 1))
-            tspan = (times[1], times[end])
-            prob = ODEProblem(ode_func!, u0, tspan, p)
-            sol = solve(prob, Tsit5(); saveat=times,
-                        abstol=1e-7, reltol=1e-5, save_everystep=false)
-            states = reduce(hcat, sol.u)
-            pred = vec(sum(states; dims=1))
-
+            pred = _solve_ode_sum(ode_func!, p, times, y[1], n_eq)
+            if pred === nothing
+                Turing.@addlogprob! -Inf
+                return nothing
+            end
             for i in eachindex(y)
                 y[i] ~ Normal(pred[i], σ)
             end
