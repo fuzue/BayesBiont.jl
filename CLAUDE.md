@@ -6,7 +6,18 @@ Bayesian companion to Kinbiont.jl. Adds calibrated UQ, hierarchical pooling acro
 
 ## Status
 
-v0.1.0-DEV. Scope per `~/fuzue-master-plan/projects/bayesbiont.md`.
+v0.1.0-DEV — currently includes most of v0.2 scope:
+- ✅ Single-curve NL fits (logistic, Gompertz)
+- ✅ Single-curve ODE fits (aHPM and any 2+-state ODE in Kinbiont's `MODEL_REGISTRY`)
+- ✅ `:lognormal`, `:normal`, `:proportional` likelihoods
+- ✅ Hierarchical pooling via `group=` kwarg (`bayesfit(data, spec; group=[...])`)
+- ✅ `contrast(post, g1, g2; param)` for posterior group contrasts
+- ✅ Curated `DEFAULT_PRIORS` for `NL_Gompertz`, `NL_logistic`, `aHPM`
+- 🔜 ReverseDiff backend (needed for >6-curve hierarchical ODE)
+- 🔜 ADVI fast path
+- 🔜 LOO/WAIC/Bayes-factor model comparison
+
+Scope per `~/fuzue-master-plan/projects/bayesbiont.md`.
 
 ## Architectural decisions (locked in May 2026)
 
@@ -25,8 +36,24 @@ v0.1.0-DEV. Scope per `~/fuzue-master-plan/projects/bayesbiont.md`.
 
 - **Internal sampling**: log-space for positive parameters; non-centered for hierarchical.
 - **External display**: always native-scale via generated quantities.
+- **Init**: prior medians, not Kinbiont's `guess()` heuristic — empirically NUTS warmup is more reliable from the prior, especially under `:proportional`.
 - **Errors**: defensive; clear messages pointing at the fix.
 - **Commits**: terse, logical, no AI attribution.
+
+## Turing/DynamicPPL gotchas
+
+Two real bugs surfaced during v0.2 hierarchical work, both worth knowing:
+
+1. **`~` only works inside the `@model` macro body.** Putting `y[j] ~ Distribution` inside a regular Julia helper function compiles silently (because `~` is defined elsewhere in the namespace) but **does not add to the model's log-probability**. Symptom: all posteriors stuck at the prior. Fix: inline observation blocks directly in `@model`, no helpers.
+
+2. **Turing's varname tracker uses the textual LHS expression.** `y_i = ys[i]; y_i[j] ~ ...` produces the varname `y_i[j]` once per loop iteration, all colliding — Turing throws "varname used multiple times in model". Fix: use `ys[i][j] ~ ...` directly so the varname includes both indices.
+
+## Hierarchical ODE cost
+
+Hierarchical ODE fits scale roughly as `O(n_curves * n_params^2)` per gradient eval (ForwardDiff Duals × ODE solve). With the current ForwardDiff backend:
+- 4 curves × 4 params (aHPM) × 500 warmup × 1 chain ≈ 5 min
+- 6 curves × 4 params × 500 warmup × 2 chains ≈ 40+ min
+- 8+ curves: switch to ReverseDiff (v0.2.x roadmap) or accept the cost
 
 ## File map
 
