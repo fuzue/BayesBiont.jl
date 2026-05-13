@@ -28,11 +28,11 @@ include("utils.jl")
         @test group_from_labels(data) == ["WT", "WT", "mut", "mut"]
     end
 
-    @testset "v0.1 reserves group= kwarg" begin
+    @testset "group= requires length to match curves" begin
         times, y, _ = synthetic_gompertz()
         data = GrowthData(reshape(y, 1, :), times, ["c1"])
         spec = BayesianModelSpec([MODEL_REGISTRY["NL_Gompertz"]])
-        @test_throws ArgumentError bayesfit(data, spec; group=["A"])
+        @test_throws ArgumentError bayesfit(data, spec; group=["A", "B"])
     end
 
     @testset "lognormal requires positive data" begin
@@ -170,6 +170,42 @@ include("utils.jl")
         @test results[2].label == "c2"
         # c2 has higher growth rate
         @test mean(results[2].growth_rate) > mean(results[1].growth_rate)
+    end
+
+    @testset "hierarchical Gompertz pooling" begin
+        # 4 replicates, two groups (control × 2 replicates each + treated × 2).
+        # Truth: control gr = 0.4, treated gr = 0.25. Pooling should recover both.
+        Random.seed!(101)
+        times = collect(0.0:0.5:24.0)
+        truth_ctrl = (N_max=1.0, growth_rate=0.40, lag=5.0)
+        truth_trt  = (N_max=0.8, growth_rate=0.25, lag=5.0)
+        gompertz(t, p) = p.N_max .* exp.(-exp.(-p.growth_rate .* (t .- p.lag)))
+
+        rows = Vector{Vector{Float64}}()
+        for _ in 1:2
+            push!(rows, gompertz(times, truth_ctrl) .* exp.(0.04 .* randn(length(times))))
+        end
+        for _ in 1:2
+            push!(rows, gompertz(times, truth_trt)  .* exp.(0.04 .* randn(length(times))))
+        end
+        curve_mat = permutedims(reduce(hcat, rows))            # n_curves × n_timepoints
+        data = GrowthData(curve_mat, times, ["c1", "c2", "t1", "t2"])
+        spec = BayesianModelSpec([MODEL_REGISTRY["NL_Gompertz"]])
+        opts = BayesFitOptions(n_chains=1, n_warmup=400, n_samples=400, rng_seed=101)
+
+        post = bayesfit(data, spec, opts; group=["ctrl", "ctrl", "trt", "trt"])
+        @test post isa HierarchicalBayesianFitResults
+        @test post.groups == ["ctrl", "trt"]
+
+        # Recover population-level growth rates
+        ctrl_gr = exp.(vec(post.chains[Symbol("μ_pop_ctrl_growth_rate")].data))
+        trt_gr  = exp.(vec(post.chains[Symbol("μ_pop_trt_growth_rate")].data))
+        @test isapprox(mean(ctrl_gr), 0.40; rtol=0.20)
+        @test isapprox(mean(trt_gr),  0.25; rtol=0.25)
+
+        # Contrast: P(control > treated) should be very high
+        diff = contrast(post, "ctrl", "trt"; param=:growth_rate)
+        @test mean(diff .> 0) > 0.95
     end
 
     @testset "aHPM ODE recovery" begin

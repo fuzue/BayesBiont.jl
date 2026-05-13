@@ -30,11 +30,12 @@ mean(r.growth_rate), quantile(r.growth_rate, [0.025, 0.975])
 """
 function bayesfit(data::GrowthData, spec::BayesianModelSpec,
                   opts::BayesFitOptions = BayesFitOptions(); group=nothing)
-    group === nothing || throw(ArgumentError(
-        "hierarchical pooling (`group=`) lands in v0.2; v0.1 fits curves independently"))
-
     isempty(spec.models) && throw(ArgumentError("BayesianModelSpec has no models"))
-    model = first(spec.models)        # v0.1: single model per spec
+    model = first(spec.models)        # single model per spec for now
+
+    if group !== nothing
+        return _fit_hierarchical(data, spec, opts, model, group)
+    end
 
     results = map(axes(data.curves, 1)) do i
         y = collect(data.curves[i, :])
@@ -43,6 +44,49 @@ function bayesfit(data::GrowthData, spec::BayesianModelSpec,
     end
 
     return BayesianGrowthFitResults(data, results)
+end
+
+function _fit_hierarchical(data, spec, opts, model, group)
+    length(group) == size(data.curves, 1) ||
+        throw(ArgumentError("`group` length $(length(group)) ≠ number of curves $(size(data.curves, 1))"))
+
+    group_labels = String.(group)
+    groups       = sort(unique(group_labels))
+    group_idx    = [findfirst(==(g), groups) for g in group_labels]
+
+    ys = [collect(data.curves[i, :]) for i in axes(data.curves, 1)]
+    foreach(y -> check_likelihood_data!(opts.likelihood, y), ys)
+
+    data_mat   = Matrix(transpose(hcat(data.times, ys[1])))  # representative for priors
+    priors_nt  = _resolve_priors(spec, model, data_mat)
+    priors_vec = priors_to_vector(model, priors_nt)
+
+    prior_tau = 0.5    # HalfNormal scale on log-space spread; v0.2.x: expose in BayesFitOptions
+    turing_model = build_hierarchical_turing_model(model, priors_vec, spec.sigma_prior,
+                                                   prior_tau, group_idx, opts.likelihood)
+
+    rng = opts.rng_seed === nothing ? Random.MersenneTwister() : Random.MersenneTwister(opts.rng_seed)
+    sampler = Turing.NUTS(opts.n_warmup, opts.target_accept; max_depth=opts.max_treedepth)
+    backend = opts.n_chains == 1 ? Turing.MCMCSerial() : Turing.MCMCThreads()
+
+    n_params = length(priors_vec)
+    n_curves = length(ys)
+    n_groups = length(groups)
+    log_means = [_lognormal_log_mean(p) for p in priors_vec]
+    init = [(
+        μ_pop = repeat(log_means', n_groups),
+        τ     = fill(0.1, n_params),
+        z     = zeros(n_curves, n_params),
+        σ_obs = fill(0.1, n_curves),
+    ) for _ in 1:opts.n_chains]
+
+    raw = Turing.sample(rng, turing_model(data.times, ys), sampler, backend,
+                        opts.n_samples, opts.n_chains;
+                        initial_params=init, progress=false)
+    chains = _rename_hier_params(raw, model, group_labels, groups)
+
+    return HierarchicalBayesianFitResults(data, model, group_labels, groups, chains,
+                                          data.times, ys)
 end
 
 """

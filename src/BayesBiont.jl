@@ -19,12 +19,14 @@ include("models.jl")
 include("inference.jl")
 include("results.jl")
 include("utils.jl")
+include("hierarchical.jl")
 include("api.jl")
 
 export BayesianModelSpec, BayesFitOptions
 export BayesianCurveFitResult, BayesianGrowthFitResults
+export HierarchicalBayesianFitResults
 export bayesfit, bayesian_fit
-export posterior_predict
+export posterior_predict, contrast
 export group_from_labels
 
 end # module
