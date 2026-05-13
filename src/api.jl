@@ -124,14 +124,23 @@ function _fit_one(model::ODEModel, times::Vector{Float64}, y::Vector{Float64},
 end
 
 function _check_ode_adbackend(adbackend::Symbol)
-    adbackend === :reversediff && throw(ArgumentError(
-        "ODE models with `adbackend=:reversediff` require SciMLSensitivity.jl to be " *
-        "loaded in your session (`using SciMLSensitivity`). It is not a hard dependency " *
-        "of BayesBiont because its Enzyme version constraints conflict with Kinbiont's " *
-        "Optimization.jl chain. Either: (a) `Pkg.add(\"SciMLSensitivity\")` in your " *
-        "environment and `using SciMLSensitivity` before calling `bayesfit`, or " *
-        "(b) keep `adbackend=:forwarddiff` (default) for ODE fits."))
+    if adbackend === :reversediff && !_is_sciml_sensitivity_loaded()
+        throw(ArgumentError(
+            "ODE models with `adbackend=:reversediff` require SciMLSensitivity.jl to be " *
+            "loaded in your session. Run `using SciMLSensitivity` before calling " *
+            "`bayesfit`, or keep `adbackend=:forwarddiff` (default) for ODE fits."))
+    end
     return nothing
+end
+
+# Check whether the user has loaded SciMLSensitivity into their session. We don't
+# depend on it directly (its Enzyme constraints conflict with Kinbiont's chain on
+# some configurations); users opt in by `Pkg.add` + `using SciMLSensitivity`.
+function _is_sciml_sensitivity_loaded()
+    for m in values(Base.loaded_modules)
+        nameof(m) === :SciMLSensitivity && return true
+    end
+    return false
 end
 
 # Initial values prefer the prior median (biology-informed centre) over Kinbiont's

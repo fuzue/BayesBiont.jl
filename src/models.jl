@@ -2,7 +2,7 @@ using Turing
 using Distributions: Distribution, LogNormal, Normal
 using Kinbiont: NLModel, ODEModel
 using OrdinaryDiffEqTsit5: Tsit5
-using SciMLBase: ODEProblem, remake, solve, successful_retcode
+using SciMLBase: ODEProblem, remake, solve, successful_retcode, AbstractODESolution
 
 """
     build_turing_model(curve_func, priors_vec, sigma_prior, likelihood)
@@ -77,8 +77,20 @@ function _solve_ode_sum(ode_func!, p, times, y1, n_eq)
     prob = ODEProblem(ode_func!, u0, tspan, p)
     sol = solve(prob, Tsit5(); saveat=times, abstol=1e-7, reltol=1e-5,
                 save_everystep=false, verbose=false, maxiters=10_000)
-    (successful_retcode(sol) && length(sol.u) == length(times)) || return nothing
+    return _ode_sum(sol, length(times))
+end
+
+# Standard SciML path (Float64 and ForwardDiff Duals): solve returns an ODESolution.
+function _ode_sum(sol::AbstractODESolution, n_times::Int)
+    (successful_retcode(sol) && length(sol.u) == n_times) || return nothing
     return vec(sum(reduce(hcat, sol.u); dims=1))
+end
+
+# SciMLSensitivity adjoint path under ReverseDiff: solve returns a TrackedArray of
+# shape (n_eq, n_times) directly — no ODESolution wrapper, no retcode field.
+function _ode_sum(sol::AbstractMatrix, n_times::Int)
+    size(sol, 2) == n_times || return nothing
+    return vec(sum(sol; dims=1))
 end
 
 """
