@@ -3,6 +3,24 @@ using Random: MersenneTwister, AbstractRNG
 using Kinbiont: NLModel, ODEModel
 using MCMCChains: replacenames
 using Distributions: mean, Distribution
+using ADTypes: AutoForwardDiff, AutoReverseDiff
+
+"""
+    _ad_backend(adbackend::Symbol)
+
+Map a user-facing symbol to an ADTypes AD backend. Supports `:forwarddiff` (default,
+robust, fast for ≤6 parameters) and `:reversediff` (compiled tape, much faster for
+hierarchical models with 50+ latent variables but slightly heavier first call).
+"""
+function _ad_backend(adbackend::Symbol)
+    if adbackend === :forwarddiff
+        return AutoForwardDiff()
+    elseif adbackend === :reversediff
+        return AutoReverseDiff(; compile=true)
+    else
+        throw(ArgumentError("unknown adbackend $(adbackend); supported: :forwarddiff, :reversediff"))
+    end
+end
 
 """
     fit_single_curve(curve_func, param_names, times, y, priors_vec, sigma_prior, guess_vec, opts)
@@ -18,7 +36,8 @@ function fit_single_curve(turing_model, param_names::Vector{String},
     rng = opts.rng_seed === nothing ? MersenneTwister() : MersenneTwister(opts.rng_seed)
 
     model = turing_model(times, y)
-    sampler = NUTS(opts.n_warmup, opts.target_accept; max_depth=opts.max_treedepth)
+    sampler = NUTS(opts.n_warmup, opts.target_accept;
+                   max_depth=opts.max_treedepth, adtype=_ad_backend(opts.adbackend))
 
     init = _initial_params(guess_vec, opts, rng)
 

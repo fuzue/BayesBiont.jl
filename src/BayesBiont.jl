@@ -8,6 +8,8 @@ using StatsBase
 using Random
 using LinearAlgebra
 using ForwardDiff
+using ReverseDiff
+using ADTypes: AutoForwardDiff, AutoReverseDiff
 using LogDensityProblems
 using OrdinaryDiffEqTsit5: Tsit5
 using SciMLBase: ODEProblem, remake, solve

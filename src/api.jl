@@ -66,7 +66,8 @@ function _fit_hierarchical(data, spec, opts, model, group)
                                                    prior_tau, group_idx, opts.likelihood)
 
     rng = opts.rng_seed === nothing ? Random.MersenneTwister() : Random.MersenneTwister(opts.rng_seed)
-    sampler = Turing.NUTS(opts.n_warmup, opts.target_accept; max_depth=opts.max_treedepth)
+    sampler = Turing.NUTS(opts.n_warmup, opts.target_accept;
+                          max_depth=opts.max_treedepth, adtype=_ad_backend(opts.adbackend))
     backend = opts.n_chains == 1 ? Turing.MCMCSerial() : Turing.MCMCThreads()
 
     n_params = length(priors_vec)
