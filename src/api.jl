@@ -47,6 +47,7 @@ function bayesfit(data::GrowthData, spec::BayesianModelSpec,
 end
 
 function _fit_hierarchical(data, spec, opts, model, group)
+    model isa ODEModel && _check_ode_adbackend(opts.adbackend)
     length(group) == size(data.curves, 1) ||
         throw(ArgumentError("`group` length $(length(group)) ≠ number of curves $(size(data.curves, 1))"))
 
@@ -111,6 +112,7 @@ end
 
 function _fit_one(model::ODEModel, times::Vector{Float64}, y::Vector{Float64},
                   label::String, spec::BayesianModelSpec, opts::BayesFitOptions)
+    _check_ode_adbackend(opts.adbackend)
     data_mat = Matrix(transpose(hcat(times, y)))
     priors_nt = _resolve_priors(spec, model, data_mat)
     priors_vec = priors_to_vector(model, priors_nt)
@@ -119,6 +121,17 @@ function _fit_one(model::ODEModel, times::Vector{Float64}, y::Vector{Float64},
                                           spec.sigma_prior, opts.likelihood)
     chains = fit_single_curve(turing_model, model.param_names, times, y, init_vec, opts)
     return BayesianCurveFitResult(label, model, chains, times, y)
+end
+
+function _check_ode_adbackend(adbackend::Symbol)
+    adbackend === :reversediff && throw(ArgumentError(
+        "ODE models with `adbackend=:reversediff` require SciMLSensitivity.jl to be " *
+        "loaded in your session (`using SciMLSensitivity`). It is not a hard dependency " *
+        "of BayesBiont because its Enzyme version constraints conflict with Kinbiont's " *
+        "Optimization.jl chain. Either: (a) `Pkg.add(\"SciMLSensitivity\")` in your " *
+        "environment and `using SciMLSensitivity` before calling `bayesfit`, or " *
+        "(b) keep `adbackend=:forwarddiff` (default) for ODE fits."))
+    return nothing
 end
 
 # Initial values prefer the prior median (biology-informed centre) over Kinbiont's
