@@ -23,12 +23,14 @@ include("results.jl")
 include("utils.jl")
 include("hierarchical.jl")
 include("api.jl")
+include("comparison.jl")
 
 export BayesianModelSpec, BayesFitOptions
 export BayesianCurveFitResult, BayesianGrowthFitResults
 export HierarchicalBayesianFitResults
 export bayesfit, bayesian_fit
 export posterior_predict, contrast
+export loo, waic, compare, pointwise_loglik
 export group_from_labels
 
 end # module

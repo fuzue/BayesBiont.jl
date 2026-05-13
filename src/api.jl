@@ -107,7 +107,7 @@ function _fit_one(model::NLModel, times::Vector{Float64}, y::Vector{Float64},
     init_vec = _init_from_priors(priors_vec, model, data_mat)
     turing_model = build_turing_model(model.func, priors_vec, spec.sigma_prior, opts.likelihood)
     chains = fit_single_curve(turing_model, model.param_names, times, y, init_vec, opts)
-    return BayesianCurveFitResult(label, model, chains, times, y)
+    return BayesianCurveFitResult(label, model, chains, times, y, opts.likelihood)
 end
 
 function _fit_one(model::ODEModel, times::Vector{Float64}, y::Vector{Float64},
@@ -120,7 +120,7 @@ function _fit_one(model::ODEModel, times::Vector{Float64}, y::Vector{Float64},
     turing_model = build_ode_turing_model(model.func, model.n_eq, priors_vec,
                                           spec.sigma_prior, opts.likelihood)
     chains = fit_single_curve(turing_model, model.param_names, times, y, init_vec, opts)
-    return BayesianCurveFitResult(label, model, chains, times, y)
+    return BayesianCurveFitResult(label, model, chains, times, y, opts.likelihood)
 end
 
 function _check_ode_adbackend(adbackend::Symbol)

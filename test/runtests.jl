@@ -21,6 +21,42 @@ include("utils.jl")
         @test isdefined(BayesBiont, :BayesianCurveFitResult)
         @test isdefined(BayesBiont, :BayesianGrowthFitResults)
         @test isdefined(BayesBiont, :group_from_labels)
+        @test isdefined(BayesBiont, :waic)
+        @test isdefined(BayesBiont, :loo)
+        @test isdefined(BayesBiont, :compare)
+    end
+
+    @testset "waic and loo on Gompertz" begin
+        times, observed, _ = synthetic_gompertz(seed=11)
+        data = GrowthData(reshape(observed, 1, :), times, ["g1"])
+        spec = BayesianModelSpec([MODEL_REGISTRY["NL_Gompertz"]])
+        opts = BayesFitOptions(n_chains=1, n_warmup=300, n_samples=300, rng_seed=11)
+        r = bayesfit(data, spec, opts)[1]
+
+        w = waic(r)
+        @test w.elpd > 0
+        @test w.p_eff > 0
+        @test w.n_obs == length(observed)
+
+        l = loo(r)
+        @test l.elpd > 0
+        @test l.n_obs == length(observed)
+        @test l.pareto_k_max < 0.7              # well-fit model → good PSIS diagnostic
+        @test isapprox(l.elpd, w.elpd; rtol=0.10) # LOO and WAIC agree closely when k is small
+    end
+
+    @testset "compare prefers true model on synthetic aHPM data" begin
+        Random.seed!(7)
+        times = collect(0.0:0.25:24.0)
+        _, obs, _ = synthetic_ahpm(gr=0.5, exit_lag_rate=0.3, N_max=1.0, shape=1.0,
+                                   N0=0.05, σ=0.05, t_end=24.0, dt=0.25, seed=7)
+        data = GrowthData(reshape(obs, 1, :), times, ["truth"])
+        opts = BayesFitOptions(n_chains=1, n_warmup=300, n_samples=300, rng_seed=7)
+        r_ahpm = bayesfit(data, BayesianModelSpec([MODEL_REGISTRY["aHPM"]]), opts)[1]
+        r_gomp = bayesfit(data, BayesianModelSpec([MODEL_REGISTRY["NL_Gompertz"]]), opts)[1]
+        cmp = compare(r_ahpm, r_gomp)
+        @test cmp.elpd_diff > 2 * cmp.se_diff   # aHPM is the true model → clear preference
+        @test occursin("aHPM", cmp.favours)
     end
 
     @testset "group_from_labels" begin

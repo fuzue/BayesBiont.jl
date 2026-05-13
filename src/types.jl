@@ -56,10 +56,11 @@ Base.@kwdef struct BayesFitOptions
 end
 
 """
-    BayesianCurveFitResult(label, model, chains, times, observed)
+    BayesianCurveFitResult(label, model, chains, times, observed, likelihood)
 
 Bayesian fit result for a single growth curve. Field access shortcut: `result.param_name`
-returns a flat sample vector for any parameter in the underlying `Chains`.
+returns a flat sample vector for any parameter in the underlying `Chains`. `likelihood`
+records which observation model was used (needed for `waic`, `loo`, `posterior_predict`).
 """
 struct BayesianCurveFitResult
     label::String
@@ -67,6 +68,7 @@ struct BayesianCurveFitResult
     chains::Any                       # MCMCChains.Chains (kept untyped to avoid heavy load order)
     times::Vector{Float64}
     observed::Vector{Float64}
+    likelihood::Symbol
 end
 
 """
