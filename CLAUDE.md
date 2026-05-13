@@ -15,8 +15,8 @@ v0.1.0-DEV — currently includes most of v0.2 scope:
 - ✅ Curated `DEFAULT_PRIORS` for `NL_Gompertz`, `NL_logistic`, `aHPM`
 - ✅ ReverseDiff backend (`BayesFitOptions(adbackend=:reversediff)`) — ~3× speedup on 6-curve hierarchical NL Gompertz
 - ✅ ODE + ReverseDiff via `using SciMLSensitivity` — measured ~2× speedup on 6-well hierarchical aHPM (21min vs 40+ min ForwardDiff). Requires the user to add SciMLSensitivity manually because its Enzyme constraints don't always resolve with Kinbiont's transitive deps.
-- 🔜 ADVI fast path — plumbing in place (`BayesFitOptions(method=:advi)`), but disabled at runtime pending Turing VI API stabilization (bijector for `arraydist`-of-LogNormal breaks during back-transform)
-- 🔜 LOO/WAIC/Bayes-factor model comparison
+- 🔜 ADVI fast path — plumbing in place (`BayesFitOptions(method=:advi)`), but disabled at runtime pending Turing VI API stabilization (see `scratch/turing_vi_issue.md`)
+- ✅ LOO/WAIC + `compare()` for ELPD-based model comparison via PSIS-LOO (`PSIS.jl`). On aHPM-truth data, `compare(r_aHPM, r_Gompertz)` returns +117.6 ± 10.0 → 11.8-σ preference for the correct model; Gompertz's `pareto_k_max = 1.19` correctly flags it as misspecified.
 
 Scope per `~/fuzue-master-plan/projects/bayesbiont.md`.
 
