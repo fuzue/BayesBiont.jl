@@ -13,9 +13,9 @@ v0.1.0-DEV — currently includes most of v0.2 scope:
 - ✅ Hierarchical pooling via `group=` kwarg (`bayesfit(data, spec; group=[...])`)
 - ✅ `contrast(post, g1, g2; param)` for posterior group contrasts
 - ✅ Curated `DEFAULT_PRIORS` for `NL_Gompertz`, `NL_logistic`, `aHPM`
-- ✅ ReverseDiff backend (`BayesFitOptions(adbackend=:reversediff)`) — NL models only out of the box; ~3× speedup on 6-curve hierarchical NL Gompertz
-- ⚠️ ODE + ReverseDiff requires `SciMLSensitivity.jl`, which currently has an Enzyme-version conflict with the OptimizationBase chain pulled in by Kinbiont. Users can opt in with `Pkg.add("SciMLSensitivity"); using SciMLSensitivity` if their environment can resolve it.
-- 🔜 ADVI fast path
+- ✅ ReverseDiff backend (`BayesFitOptions(adbackend=:reversediff)`) — ~3× speedup on 6-curve hierarchical NL Gompertz
+- ✅ ODE + ReverseDiff via `using SciMLSensitivity` — measured ~2× speedup on 6-well hierarchical aHPM (21min vs 40+ min ForwardDiff). Requires the user to add SciMLSensitivity manually because its Enzyme constraints don't always resolve with Kinbiont's transitive deps.
+- 🔜 ADVI fast path — plumbing in place (`BayesFitOptions(method=:advi)`), but disabled at runtime pending Turing VI API stabilization (bijector for `arraydist`-of-LogNormal breaks during back-transform)
 - 🔜 LOO/WAIC/Bayes-factor model comparison
 
 Scope per `~/fuzue-master-plan/projects/bayesbiont.md`.
@@ -52,11 +52,10 @@ Two real bugs surfaced during v0.2 hierarchical work, both worth knowing:
 ## Hierarchical ODE cost
 
 Hierarchical ODE fits scale roughly as `O(n_curves * n_params^2)` per gradient eval (ForwardDiff Duals × ODE solve). Observed timings:
-- 4 curves × 4 params (aHPM) × 500 warmup × 1 chain ≈ 5 min  (ForwardDiff)
-- 6 curves × 4 params × 500 warmup × 2 chains ≈ 40+ min       (ForwardDiff)
-
-For hierarchical **NL** models, `adbackend=:reversediff` cuts the cost by ~3× (verified on 6-curve Gompertz: 146s → 50s).
-For hierarchical **ODE**, ReverseDiff is gated on SciMLSensitivity — see status block above.
+- 4 curves × 4 params (aHPM) × 500 warmup × 1 chain ≈ 5 min   (ForwardDiff)
+- 6 curves × 4 params × 500 warmup × 2 chains ≈ 40+ min        (ForwardDiff)
+- 6 curves × 4 params × 500 warmup × 2 chains ≈ **21 min**     (ReverseDiff + SciMLSensitivity)
+- 6 curves × 3 params (Gompertz NL) × 300 warmup × 1 chain: 146s → **50s** (~3× from ReverseDiff alone)
 
 ## File map
 

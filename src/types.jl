@@ -26,22 +26,30 @@ BayesianModelSpec(models; priors=nothing, sigma_prior=Exponential(0.1)) =
 
 Configuration for Bayesian fitting.
 
-- `likelihood::Symbol = :lognormal`: `:lognormal` (multiplicative noise, requires positive
-  data) or `:normal` (additive).
-- `n_chains::Int = 4`, `n_warmup::Int = 1000`, `n_samples::Int = 1000`
+- `method::Symbol = :nuts`: inference algorithm. `:nuts` for calibrated posteriors,
+  `:advi` for fast variational approximation (mean-field; underestimates uncertainty
+  but typically 10–100× faster — useful for plate-scale screening, follow up with NUTS
+  on wells of interest).
+- `likelihood::Symbol = :lognormal`: `:lognormal`, `:normal`, or `:proportional`.
+- `n_chains::Int = 4`, `n_warmup::Int = 1000`, `n_samples::Int = 1000` — NUTS only.
 - `target_accept::Float64 = 0.95`: NUTS dual-averaging target.
-- `max_treedepth::Int = 10`
+- `max_treedepth::Int = 10`: NUTS only.
+- `advi_n_iters::Int = 5000`: ADVI optimisation iterations.
+- `advi_samples_per_step::Int = 10`: ADVI ELBO Monte Carlo samples per gradient step.
 - `jitter::Float64 = 0.1`: log-space jitter around `model.guess()` for per-chain init.
 - `rng_seed::Union{Nothing, Int} = nothing`: deterministic seed when set.
-- `adbackend::Symbol = :forwarddiff`: reserved for v0.2 (`:reversediff` planned).
+- `adbackend::Symbol = :forwarddiff`: `:forwarddiff` (default) or `:reversediff`.
 """
 Base.@kwdef struct BayesFitOptions
+    method::Symbol                   = :nuts
     likelihood::Symbol               = :lognormal
     n_chains::Int                    = 4
     n_warmup::Int                    = 1000
     n_samples::Int                   = 1000
     target_accept::Float64           = 0.95
     max_treedepth::Int               = 10
+    advi_n_iters::Int                = 5000
+    advi_samples_per_step::Int       = 10
     jitter::Float64                  = 0.1
     rng_seed::Union{Nothing, Int}    = nothing
     adbackend::Symbol                = :forwarddiff
