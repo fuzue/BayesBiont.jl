@@ -9,10 +9,10 @@ function check_likelihood_data!(likelihood::Symbol, y::AbstractVector)
         throw(ArgumentError(
             "likelihood=:lognormal requires strictly positive data; got $(count(<=(0), y)) " *
             "non-positive value(s). Run `preprocess` with `correct_negatives=true`, or pass " *
-            "`BayesFitOptions(likelihood=:normal)`."
+            "`BayesFitOptions(likelihood=:normal)` or `:proportional`."
         ))
-    elseif likelihood !== :lognormal && likelihood !== :normal
-        throw(ArgumentError("unknown likelihood $(likelihood); supported: :lognormal, :normal"))
+    elseif likelihood ∉ (:lognormal, :normal, :proportional)
+        throw(ArgumentError("unknown likelihood $(likelihood); supported: :lognormal, :normal, :proportional"))
     end
     return nothing
 end

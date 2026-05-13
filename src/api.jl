@@ -1,4 +1,5 @@
 using Kinbiont: GrowthData, AbstractGrowthModel, NLModel
+using Distributions
 
 """
     bayesfit(data::GrowthData, spec::BayesianModelSpec[, opts::BayesFitOptions]; group=nothing)
@@ -57,11 +58,9 @@ function _fit_one(model::NLModel, times::Vector{Float64}, y::Vector{Float64},
     data_mat = Matrix(transpose(hcat(times, y)))
     priors_nt = _resolve_priors(spec, model, data_mat)
     priors_vec = priors_to_vector(model, priors_nt)
-    guess_vec = model.guess === nothing ?
-        [mean(p) for p in priors_vec] :
-        model.guess(data_mat)
+    init_vec = _init_from_priors(priors_vec, model, data_mat)
     turing_model = build_turing_model(model.func, priors_vec, spec.sigma_prior, opts.likelihood)
-    chains = fit_single_curve(turing_model, model.param_names, times, y, guess_vec, opts)
+    chains = fit_single_curve(turing_model, model.param_names, times, y, init_vec, opts)
     return BayesianCurveFitResult(label, model, chains, times, y)
 end
 
@@ -70,14 +69,24 @@ function _fit_one(model::ODEModel, times::Vector{Float64}, y::Vector{Float64},
     data_mat = Matrix(transpose(hcat(times, y)))
     priors_nt = _resolve_priors(spec, model, data_mat)
     priors_vec = priors_to_vector(model, priors_nt)
-    guess_vec = model.guess === nothing ?
-        [mean(p) for p in priors_vec] :
-        model.guess(data_mat)
+    init_vec = _init_from_priors(priors_vec, model, data_mat)
     turing_model = build_ode_turing_model(model.func, model.n_eq, priors_vec,
                                           spec.sigma_prior, opts.likelihood)
-    chains = fit_single_curve(turing_model, model.param_names, times, y, guess_vec, opts)
+    chains = fit_single_curve(turing_model, model.param_names, times, y, init_vec, opts)
     return BayesianCurveFitResult(label, model, chains, times, y)
 end
+
+# Initial values prefer the prior median (biology-informed centre) over Kinbiont's
+# MLE-oriented `guess()` heuristic — empirically NUTS warmup is more reliable from
+# the prior, especially under heteroscedastic / proportional likelihoods where bad
+# init traps the sampler. Fall back to `guess()` only when the priors are uniform-ish
+# (no curated entry and no user override).
+function _init_from_priors(priors_vec, model, data_mat)
+    return [_prior_init_value(p) for p in priors_vec]
+end
+
+_prior_init_value(p::Distributions.LogNormal) = exp(p.μ)
+_prior_init_value(p) = Distributions.median(p)
 
 _fit_one(model::AbstractGrowthModel, ::Vector{Float64}, ::Vector{Float64},
          ::String, ::BayesianModelSpec, ::BayesFitOptions) =

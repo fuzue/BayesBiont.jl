@@ -33,8 +33,19 @@ function build_turing_model(curve_func, priors_vec::Vector{<:Distribution},
                 y[i] ~ Normal(pred[i], σ)
             end
         end
+    elseif likelihood === :proportional
+        # Heteroscedastic noise: σ_i = σ · max(pred_i, ε). Matches Kinbiont's
+        # `RE` loss semantically — relative error is constant across magnitudes.
+        return @model function _curve_proportional(times, y)
+            p ~ arraydist(priors_vec)
+            σ ~ sigma_prior
+            pred = curve_func(p, times)
+            for i in eachindex(y)
+                y[i] ~ Normal(pred[i], σ * (pred[i] + eps()))
+            end
+        end
     else
-        throw(ArgumentError("unknown likelihood $(likelihood)"))
+        throw(ArgumentError("unknown likelihood $(likelihood); supported: :lognormal, :normal, :proportional"))
     end
 end
 
@@ -109,7 +120,21 @@ function build_ode_turing_model(ode_func!, n_eq::Int,
                 y[i] ~ Normal(pred[i], σ)
             end
         end
+    elseif likelihood === :proportional
+        return @model function _ode_curve_proportional(times, y)
+            p ~ arraydist(priors_vec)
+            σ ~ sigma_prior
+
+            pred = _solve_ode_sum(ode_func!, p, times, y[1], n_eq)
+            if pred === nothing
+                Turing.@addlogprob! -Inf
+                return nothing
+            end
+            for i in eachindex(y)
+                y[i] ~ Normal(pred[i], σ * (pred[i] + eps()))
+            end
+        end
     else
-        throw(ArgumentError("unknown likelihood $(likelihood)"))
+        throw(ArgumentError("unknown likelihood $(likelihood); supported: :lognormal, :normal, :proportional"))
     end
 end

@@ -118,6 +118,24 @@ include("utils.jl")
         @test isapprox(mean(r.N_max), 0.5; rtol=0.02)
     end
 
+    @testset ":proportional likelihood recovers Gompertz" begin
+        # Heteroscedastic noise: σ_i = σ_rel * curve_i — matches Kinbiont's RE loss.
+        Random.seed!(5)
+        times = collect(0.0:0.25:24.0)
+        truth = (N_max=1.0, growth_rate=0.4, lag=5.0, σ_rel=0.05)
+        clean = truth.N_max .* exp.(-exp.(-truth.growth_rate .* (times .- truth.lag)))
+        observed = clean .+ truth.σ_rel .* clean .* randn(length(times))
+        data = GrowthData(reshape(observed, 1, :), times, ["g_prop"])
+        spec = BayesianModelSpec([MODEL_REGISTRY["NL_Gompertz"]])
+        opts = BayesFitOptions(likelihood=:proportional,
+                               n_chains=2, n_warmup=400, n_samples=400, rng_seed=5)
+
+        r = bayesfit(data, spec, opts)[1]
+        @test isapprox(mean(r.N_max),       truth.N_max;       rtol=0.10)
+        @test isapprox(mean(r.growth_rate), truth.growth_rate; rtol=0.20)
+        @test isapprox(mean(r.lag),         truth.lag;         rtol=0.15)
+    end
+
     @testset ":normal likelihood recovers Gompertz" begin
         # Additive noise version — switch likelihood, expect comparable recovery.
         Random.seed!(7)
