@@ -13,7 +13,8 @@ v0.1.0-DEV — currently includes most of v0.2 scope:
 - ✅ Hierarchical pooling via `group=` kwarg (`bayesfit(data, spec; group=[...])`)
 - ✅ `contrast(post, g1, g2; param)` for posterior group contrasts
 - ✅ Curated `DEFAULT_PRIORS` for `NL_Gompertz`, `NL_logistic`, `aHPM`
-- 🔜 ReverseDiff backend (needed for >6-curve hierarchical ODE)
+- ✅ ReverseDiff backend (`BayesFitOptions(adbackend=:reversediff)`) — NL models only out of the box; ~3× speedup on 6-curve hierarchical NL Gompertz
+- ⚠️ ODE + ReverseDiff requires `SciMLSensitivity.jl`, which currently has an Enzyme-version conflict with the OptimizationBase chain pulled in by Kinbiont. Users can opt in with `Pkg.add("SciMLSensitivity"); using SciMLSensitivity` if their environment can resolve it.
 - 🔜 ADVI fast path
 - 🔜 LOO/WAIC/Bayes-factor model comparison
 
@@ -50,10 +51,12 @@ Two real bugs surfaced during v0.2 hierarchical work, both worth knowing:
 
 ## Hierarchical ODE cost
 
-Hierarchical ODE fits scale roughly as `O(n_curves * n_params^2)` per gradient eval (ForwardDiff Duals × ODE solve). With the current ForwardDiff backend:
-- 4 curves × 4 params (aHPM) × 500 warmup × 1 chain ≈ 5 min
-- 6 curves × 4 params × 500 warmup × 2 chains ≈ 40+ min
-- 8+ curves: switch to ReverseDiff (v0.2.x roadmap) or accept the cost
+Hierarchical ODE fits scale roughly as `O(n_curves * n_params^2)` per gradient eval (ForwardDiff Duals × ODE solve). Observed timings:
+- 4 curves × 4 params (aHPM) × 500 warmup × 1 chain ≈ 5 min  (ForwardDiff)
+- 6 curves × 4 params × 500 warmup × 2 chains ≈ 40+ min       (ForwardDiff)
+
+For hierarchical **NL** models, `adbackend=:reversediff` cuts the cost by ~3× (verified on 6-curve Gompertz: 146s → 50s).
+For hierarchical **ODE**, ReverseDiff is gated on SciMLSensitivity — see status block above.
 
 ## File map
 
