@@ -20,9 +20,3 @@ makedocs(
         "API reference"    => "api.md",
     ],
 )
-
-deploydocs(
-    repo = "github.com/fuzue/BayesBiont.jl.git",
-    devbranch = "main",
-    push_preview = false,
-)
