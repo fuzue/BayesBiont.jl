@@ -34,6 +34,8 @@ jobs:
         run: julia --project=docs --color=yes docs/make.jl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Write CNAME
+        run: echo 'bayesbiont.fuzue.tech' > docs/build/CNAME
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload site
