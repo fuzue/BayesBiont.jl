@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   docs:
-    name: 'Build + deploy docs (Julia 1)'
+    name: 'Build + deploy site (Julia 1)'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -30,18 +30,23 @@ jobs:
       - uses: julia-actions/cache@v2
       - name: Install docs dependencies
         run: julia --project=docs -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
-      - name: Build site
+      - name: Build Documenter docs
         run: julia --project=docs --color=yes docs/make.jl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Write CNAME
-        run: echo 'bayesbiont.fuzue.tech' > docs/build/CNAME
+      - name: Assemble site (landing at /, docs at /docs)
+        run: |
+          mkdir -p site
+          cp -r landing/* site/
+          mkdir -p site/docs
+          cp -r docs/build/* site/docs/
+          echo 'bayesbiont.fuzue.tech' > site/CNAME
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload site
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'docs/build'
+          path: 'site'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

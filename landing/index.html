@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BayesBiont.jl — Bayesian inference for microbial growth curves</title>
+  <meta name="description" content="BayesBiont.jl: the Bayesian companion to Kinbiont.jl. NUTS sampling via Turing.jl, hierarchical pooling across replicates, and PSIS-LOO model comparison for growth-curve data in Julia.">
+  <link rel="icon" type="image/svg+xml" href="fuzue-favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container nav">
+    <a class="brand" href="/">
+      <span class="brand-dot" aria-hidden="true"></span>
+      <img class="brand-logo" src="fuzue-01.svg" alt="Fuzue" height="22">
+      <span class="brand-divider" aria-hidden="true">/</span>
+      <span class="brand-pkg">BayesBiont<span class="brand-pkg-ext">.jl</span></span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#methods">Why Bayes</a></li>
+      <li><a href="#kinbiont">Compare</a></li>
+      <li><a href="#example">Example</a></li>
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="https://github.com/fuzue/BayesBiont.jl" rel="external">GitHub</a></li>
+    </ul>
+  </div>
+</header>
+
+<main>
+
+  <!-- ────────── HERO ────────── -->
+  <section class="hero">
+    <div class="container hero-grid">
+      <div class="hero-copy">
+        <h1><em>Bayesian</em> inference<br>for microbial<br>growth&nbsp;curves.</h1>
+        <p class="lede">
+          BayesBiont.jl is the Bayesian companion to
+          <a href="https://github.com/pinheiroGroup/Kinbiont.jl" rel="external"><code>Kinbiont.jl</code></a>.
+          Where Kinbiont fits growth-curve models by maximum likelihood,
+          BayesBiont samples the full posterior with NUTS via
+          <a href="https://turinglang.org" rel="external">Turing.jl</a><sup><a href="#ref-hoffman">1</a></sup>,
+          supports hierarchical pooling across replicates with a
+          non-centered reparameterisation<sup><a href="#ref-papas">2</a></sup>,
+          and compares competing models with PSIS-LOO<sup><a href="#ref-vehtari">3</a></sup>.
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="/docs">
+            Documentation
+            <span class="btn-arrow" aria-hidden="true">→</span>
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/fuzue/BayesBiont.jl" rel="external">
+            GitHub
+          </a>
+        </div>
+        <dl class="hero-meta">
+          <div>
+            <dt>License</dt>
+            <dd>MIT · v0.1.0</dd>
+          </div>
+          <div>
+            <dt>Published by</dt>
+            <dd><a href="https://fuzue.tech" rel="external">Fuzue Tech</a></dd>
+          </div>
+        </dl>
+      </div>
+
+      <figure class="hero-figure" aria-label="A microbial growth curve with a Bayesian credible-interval band">
+        <svg class="growth-svg" viewBox="0 0 540 380" role="img" aria-labelledby="curveTitle curveDesc" preserveAspectRatio="xMidYMid meet">
+          <title id="curveTitle">Microbial growth curve with credible-interval band</title>
+          <desc id="curveDesc">Sigmoid growth from baseline to plateau, with a posterior 95% credible band widening through the exponential phase and narrowing at the asymptote.</desc>
+
+          <g class="grid">
+            <line x1="58" y1="40"  x2="58"  y2="330"/>
+            <line x1="58" y1="330" x2="510" y2="330"/>
+            <line x1="58" y1="260" x2="510" y2="260" class="grid-faint"/>
+            <line x1="58" y1="190" x2="510" y2="190" class="grid-faint"/>
+            <line x1="58" y1="120" x2="510" y2="120" class="grid-faint"/>
+          </g>
+
+          <g class="axis-label">
+            <text x="284" y="358" text-anchor="middle">time (h)</text>
+            <text x="32" y="185" text-anchor="middle" transform="rotate(-90, 32, 185)">OD₆₀₀</text>
+            <text x="52" y="334" text-anchor="end" class="tick">0.0</text>
+            <text x="52" y="264" text-anchor="end" class="tick">0.3</text>
+            <text x="52" y="194" text-anchor="end" class="tick">0.6</text>
+            <text x="52" y="124" text-anchor="end" class="tick">0.9</text>
+            <text x="68"  y="346" text-anchor="middle" class="tick">0</text>
+            <text x="180" y="346" text-anchor="middle" class="tick">6</text>
+            <text x="292" y="346" text-anchor="middle" class="tick">12</text>
+            <text x="404" y="346" text-anchor="middle" class="tick">18</text>
+            <text x="510" y="346" text-anchor="middle" class="tick">24</text>
+          </g>
+
+          <!-- band: 26 top + 26 bottom samples from curve(x) ± half_w(x) -->
+          <path class="band" d="M 58 322 L 76 322 L 94 322 L 112 322 L 130 322 L 148 322 L 166 321 L 184 320 L 202 318 L 220 314 L 238 307 L 256 294 L 274 273 L 292 240 L 310 193 L 328 144 L 346 103 L 364 76 L 382 60 L 400 55 L 418 54 L 436 55 L 454 56 L 472 58 L 490 59 L 508 59 L 508 69 L 490 70 L 472 72 L 454 75 L 436 81 L 418 88 L 400 99 L 382 115 L 364 137 L 346 167 L 328 206 L 310 249 L 292 286 L 274 309 L 256 321 L 238 326 L 220 329 L 202 330 L 184 330 L 166 330 L 148 330 L 130 330 L 112 330 L 94 330 L 76 330 L 58 330 Z"/>
+
+          <!-- curve: 26 samples from the same sigmoid as the band -->
+          <path class="curve" d="M 58 326 L 76 326 L 94 326 L 112 326 L 130 326 L 148 326 L 166 326 L 184 325 L 202 324 L 220 321 L 238 317 L 256 308 L 274 291 L 292 263 L 310 221 L 328 175 L 346 135 L 364 106 L 382 88 L 400 77 L 418 71 L 436 68 L 454 66 L 472 65 L 490 64 L 508 64"/>
+
+          <g class="data-points">
+            <circle cx="76"  cy="326" r="3.2"/>
+            <circle cx="130" cy="326" r="3.2"/>
+            <circle cx="184" cy="325" r="3.2"/>
+            <circle cx="220" cy="321" r="3.2"/>
+            <circle cx="256" cy="308" r="3.2"/>
+            <circle cx="292" cy="263" r="3.2"/>
+            <circle cx="328" cy="175" r="3.2"/>
+            <circle cx="382" cy="88"  r="3.2"/>
+            <circle cx="436" cy="68"  r="3.2"/>
+            <circle cx="490" cy="64"  r="3.2"/>
+          </g>
+        </svg>
+        <figcaption>
+          Posterior mean and 95% credible band for a single well,
+          fit under a hierarchical aHPM model across six replicates.
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ────────── WHAT IT DOES ────────── -->
+  <section class="block" id="models">
+    <div class="container">
+      <div class="block-head">
+        <p class="section-label">What's in the box</p>
+        <h2 class="block-title">A small surface area, all of it auditable.</h2>
+      </div>
+
+      <div class="grid-3">
+        <article class="def">
+          <h3>Curve models</h3>
+          <p>Gompertz, Logistic, Baranyi, Richards, and any nonlinear model from Kinbiont's <code>NL_MODEL_REGISTRY</code>. User-defined models drop in as a function plus a guess heuristic.</p>
+        </article>
+        <article class="def">
+          <h3>ODE models</h3>
+          <p>aHPM and arbitrary multi-state ODEs from Kinbiont's <code>MODEL_REGISTRY</code>. Solved with OrdinaryDiffEq.jl; reverse-mode AD via SciMLSensitivity.jl for hierarchical fits.</p>
+        </article>
+        <article class="def">
+          <h3>Likelihoods</h3>
+          <p><code>:lognormal</code> (default; matches Kinbiont's RE loss), <code>:normal</code>, <code>:proportional</code>. Defensive error on non-positive data under lognormal — no silent epsilon shift.</p>
+        </article>
+        <article class="def">
+          <h3>Priors</h3>
+          <p>Curated <code>DEFAULT_PRIORS</code> for canonical models calibrated to plate-reader OD; empirical fallback via <code>model.guess(data)</code> for user-defined models. All overridable per parameter.</p>
+        </article>
+        <article class="def">
+          <h3>Hierarchical pooling</h3>
+          <p>Non-centered reparameterisation across replicates by group<sup><a href="#ref-papas">2</a></sup>. Users see <code>LogNormal</code> priors going in and native-scale posteriors coming out; the log-space trick is internal.</p>
+        </article>
+        <article class="def">
+          <h3>Model comparison</h3>
+          <p>PSIS-LOO and WAIC via PSIS.jl<sup><a href="#ref-vehtari">3</a></sup>. <code>compare(r₁, r₂)</code> returns ELPD differences with standard errors; Pareto-k diagnostics flag misspecification.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ────────── METHODOLOGY ────────── -->
+  <section class="block block-tinted" id="methods">
+    <div class="container">
+      <div class="block-head">
+        <p class="section-label">Why Bayesian</p>
+        <h2 class="block-title">What changes when you sample the posterior.</h2>
+      </div>
+
+      <div class="prose-grid">
+        <article class="prose">
+          <h3>Calibrated uncertainty</h3>
+          <p>
+            Maximum-likelihood fits give you a point estimate and a
+            Hessian-derived standard error. The standard error is
+            asymptotically valid under regularity conditions that
+            growth-curve experiments routinely violate (sparse data,
+            non-identifiability of the lag, weak constraints on the
+            asymptote). Posterior credible intervals make no such
+            assumptions and degrade gracefully as the data weakens —
+            they widen to match what the data actually says.
+          </p>
+        </article>
+
+        <article class="prose">
+          <h3>Hierarchical pooling, done correctly</h3>
+          <p>
+            With replicates of the same condition, neither "average
+            then fit" nor "fit independently then average" is the
+            right thing. Partial pooling estimates a population
+            distribution over the per-well parameters and shares
+            strength across replicates without forcing them to be
+            identical. BayesBiont uses the non-centered
+            reparameterisation<sup><a href="#ref-papas">2</a></sup>
+            to sidestep the funnel geometry that breaks centred
+            hierarchical models under NUTS.
+          </p>
+        </article>
+
+        <article class="prose">
+          <h3>Principled model comparison</h3>
+          <p>
+            <code>compare(result₁, result₂)</code> returns the
+            expected log pointwise predictive density (ELPD)
+            difference under PSIS-LOO with its standard error,
+            plus per-observation Pareto-k diagnostics. The latter
+            flag observations the importance sampling can't
+            reweight reliably — a built-in misspecification check
+            that doesn't depend on noticing a bad fit by eye.
+          </p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ────────── KINBIONT × BAYESBIONT ────────── -->
+  <section class="block" id="kinbiont">
+    <div class="container">
+      <div class="block-head">
+        <p class="section-label">Kinbiont &amp; BayesBiont</p>
+        <h2 class="block-title">Same data layout, same models. Different questions.</h2>
+      </div>
+
+      <p class="block-intro">
+        BayesBiont depends on Kinbiont and reuses its <code>GrowthData</code>
+        container and <code>MODEL_REGISTRY</code>. The model definitions are
+        the same; what differs is the inference and what you do with the
+        result.
+      </p>
+
+      <div class="compare">
+        <article class="compare-col">
+          <h3>
+            <a href="https://github.com/pinheiroGroup/Kinbiont.jl" rel="external">Kinbiont.jl</a>
+            <span class="tag">point estimates</span>
+          </h3>
+          <ul>
+            <li>Fast nonlinear and ODE fits by maximum likelihood</li>
+            <li>Plate-reader CSV ingestion, change-point detection, preprocessing</li>
+            <li>Batch fitting across many wells, many plates</li>
+            <li>Exploratory analysis when you need a curve and a number</li>
+          </ul>
+          <p class="when-to-use">
+            <strong>Reach for Kinbiont when:</strong> you need throughput,
+            you're screening, you're prototyping a new model, or
+            uncertainty isn't the deliverable.
+          </p>
+        </article>
+
+        <article class="compare-col compare-col--accent">
+          <h3>
+            <a href="https://github.com/fuzue/BayesBiont.jl" rel="external">BayesBiont.jl</a>
+            <span class="tag tag--accent">posterior inference</span>
+          </h3>
+          <ul>
+            <li>NUTS sampling of the full posterior on Kinbiont models</li>
+            <li>Hierarchical pooling across replicates per condition</li>
+            <li>PSIS-LOO model comparison with diagnostics</li>
+            <li>Posterior contrasts: "P(WT &gt; mutant) = 0.97"</li>
+          </ul>
+          <p class="when-to-use">
+            <strong>Reach for BayesBiont when:</strong> you have
+            replicates, you want credible intervals you can publish,
+            you're choosing between competing kinetic models, or
+            the inference is the deliverable.
+          </p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ────────── EXAMPLE ────────── -->
+  <section class="block block-tinted" id="example">
+    <div class="container example-grid">
+      <div class="example-copy">
+        <p class="section-label">Example</p>
+        <h2 class="block-title">A hierarchical fit, end to end.</h2>
+        <p class="block-intro">
+          Six wells from a plate reader, three replicates each for
+          wild-type and a mutant. Fit a hierarchical Gompertz model,
+          then ask the posterior whether the wild-type grows faster.
+          The same script can swap the model and call <code>compare</code>
+          to decide between candidates.
+        </p>
+        <p class="example-foot">
+          See the
+          <a href="/docs/05_hierarchical/" class="text-link">Hierarchical pooling</a> and
+          <a href="/docs/06_comparison/" class="text-link">Model comparison</a>
+          chapters of the documentation for the full walkthrough,
+          including how to interpret the Pareto-k diagnostic and how
+          to handle non-positive data under <code>:lognormal</code>.
+        </p>
+      </div>
+
+      <pre class="code"><code><span class="c-key">using</span> <span class="c-mod">BayesBiont</span>
+
+<span class="c-com"># Six wells, three replicates per condition</span>
+data  = <span class="c-fn">GrowthData</span>(curve_matrix, times, well_labels)
+group = [<span class="c-str">"WT"</span>, <span class="c-str">"WT"</span>, <span class="c-str">"WT"</span>, <span class="c-str">"mut"</span>, <span class="c-str">"mut"</span>, <span class="c-str">"mut"</span>]
+
+<span class="c-com"># Hierarchical Bayesian fit on a non-linear Gompertz</span>
+spec = <span class="c-fn">BayesianModelSpec</span>([MODEL_REGISTRY[<span class="c-str">"NL_Gompertz"</span>]])
+post = <span class="c-fn">bayesfit</span>(data, spec; group = group)
+
+<span class="c-com"># Posterior contrast on the growth rate</span>
+Δ = <span class="c-fn">contrast</span>(post, <span class="c-str">"WT"</span>, <span class="c-str">"mut"</span>; param = <span class="c-sym">:growth_rate</span>)
+<span class="c-fn">println</span>(<span class="c-str">"P(WT > mut) = "</span>, <span class="c-fn">mean</span>(Δ .&gt; 0))
+<span class="c-fn">println</span>(<span class="c-str">"Δ 95% CI    = "</span>, <span class="c-fn">quantile</span>(Δ, [<span class="c-num">0.025</span>, <span class="c-num">0.975</span>]))</code></pre>
+    </div>
+  </section>
+
+  <!-- ────────── INSTALL & CITE ────────── -->
+  <section class="block" id="install">
+    <div class="container install-grid">
+      <div>
+        <p class="section-label">Installation</p>
+        <h2 class="block-title">In the General registry.</h2>
+        <p class="block-intro">
+          Both Kinbiont and BayesBiont are registered. Pkg resolves
+          the rest of the dependency graph.
+        </p>
+        <pre class="code code-sm"><code><span class="c-com">julia&gt;</span> ] add BayesBiont</code></pre>
+      </div>
+
+      <div>
+        <p class="section-label">Cite</p>
+        <h2 class="block-title">If you use BayesBiont in a paper.</h2>
+        <pre class="code code-sm"><code>@software{bayesbiont,
+  author    = {Alvarenga, Edgar Zanella},
+  title     = {BayesBiont.jl: Bayesian inference
+               for microbial growth curves},
+  publisher = {Fuzue Tech},
+  url       = {https://github.com/fuzue/BayesBiont.jl},
+  year      = {2026}
+}</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ────────── REFERENCES ────────── -->
+  <section class="block block-refs">
+    <div class="container">
+      <p class="section-label">References</p>
+      <ol class="ref-list">
+        <li id="ref-hoffman">
+          Hoffman, M. D., &amp; Gelman, A. (2014).
+          The No-U-Turn Sampler: Adaptively Setting Path Lengths in Hamiltonian Monte Carlo.
+          <em>Journal of Machine Learning Research</em>, 15(47), 1593–1623.
+          <a class="text-link" href="https://jmlr.org/papers/v15/hoffman14a.html" rel="external">jmlr.org/papers/v15/hoffman14a</a>
+        </li>
+        <li id="ref-papas">
+          Papaspiliopoulos, O., Roberts, G. O., &amp; Sköld, M. (2007).
+          A General Framework for the Parametrization of Hierarchical Models.
+          <em>Statistical Science</em>, 22(1), 59–73.
+          <a class="text-link" href="https://doi.org/10.1214/088342307000000014" rel="external">doi.org/10.1214/088342307000000014</a>
+        </li>
+        <li id="ref-vehtari">
+          Vehtari, A., Gelman, A., &amp; Gabry, J. (2017).
+          Practical Bayesian model evaluation using leave-one-out cross-validation and WAIC.
+          <em>Statistics and Computing</em>, 27(5), 1413–1432.
+          <a class="text-link" href="https://doi.org/10.1007/s11222-016-9696-4" rel="external">doi.org/10.1007/s11222-016-9696-4</a>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div>
+      <a class="brand" href="https://fuzue.tech">
+        <img class="brand-logo" src="fuzue-01.svg" alt="Fuzue" height="20">
+      </a>
+      <p>Research software engineering for laboratories and ML teams.</p>
+    </div>
+    <div>
+      <h4>Project</h4>
+      <ul>
+        <li><a href="/docs">Documentation</a></li>
+        <li><a href="https://github.com/fuzue/BayesBiont.jl" rel="external">Source</a></li>
+        <li><a href="https://github.com/fuzue/BayesBiont.jl/issues" rel="external">Issues</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>Related</h4>
+      <ul>
+        <li><a href="https://github.com/pinheiroGroup/Kinbiont.jl" rel="external">Kinbiont.jl</a></li>
+        <li><a href="https://turinglang.org" rel="external">Turing.jl</a></li>
+        <li><a href="https://sciml.ai" rel="external">SciML</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>Contact</h4>
+      <ul>
+        <li><a href="mailto:contact@fuzue.tech">contact@fuzue.tech</a></li>
+        <li><a href="https://fuzue.tech" rel="external">fuzue.tech</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="container footer-foot">
+    <span>© 2026 Fuzue Tech &amp; contributors. MIT licensed.</span>
+  </div>
+</footer>
+
+</body>
+</html>

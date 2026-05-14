@@ -6,7 +6,7 @@ makedocs(
     checkdocs = :none,
     format = Documenter.HTML(
         size_threshold = nothing,
-        canonical = "https://bayesbiont.fuzue.tech",
+        canonical = "https://bayesbiont.fuzue.tech/docs",
     ),
     pages = [
         "Home"             => "index.md",
